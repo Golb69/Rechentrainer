@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rechentrainer</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#ffffff; --text:#1c1e21; --muted:#6b7280;
+    --border:#e2e4e8; --accent:#3b6df0; --accent-text:#ffffff;
+    --ok:#1f9d55; --err:#dc2626;
+    box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){ --bg:#15171a; --card:#1e2126; --text:#f0f1f3; --muted:#9aa0aa; --border:#2c2f36; --accent:#5b8bf7; --accent-text:#0b0d10; --ok:#2f9e5c; --err:#c94444; }
+  }
+  :root[data-theme="dark"]{ --bg:#15171a; --card:#1e2126; --text:#f0f1f3; --muted:#9aa0aa; --border:#2c2f36; --accent:#5b8bf7; --accent-text:#0b0d10; --ok:#2f9e5c; --err:#c94444; }
+  html{scroll-padding-top:env(safe-area-inset-top,0px); height:100%;}
+  *{box-sizing:border-box;}
+  body{height:100%; margin:0; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif; display:flex; justify-content:center;}
+  #app{width:100%; max-width:480px; padding:16px; padding-top:calc(16px + env(safe-area-inset-top,0px));}
+  .topbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;}
+  h1{font-size:1.2rem; margin:0;}
+  .icon-btn{background:none; border:1px solid var(--border); border-radius:10px; padding:6px 10px; font-size:1rem; cursor:pointer; color:var(--text);}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:14px; transition:background .25s, color .25s;}
+  .settings-toggle{display:flex; justify-content:space-between; align-items:center; cursor:pointer; user-select:none;}
+  .settings-toggle span{font-weight:600; font-size:.95rem;}
+  .settings-body{margin-top:14px; display:flex; flex-direction:column; gap:14px;}
+  .settings-body[hidden]{display:none;}
+  fieldset{border:none; padding:0; margin:0;}
+  legend{font-size:.8rem; color:var(--muted); margin-bottom:6px; padding:0;}
+  .option-row{display:flex; gap:8px; flex-wrap:wrap;}
+  .option-row label{flex:1; min-width:70px; text-align:center; padding:8px 6px; border-radius:10px; border:1px solid var(--border); font-size:.85rem; cursor:pointer;}
+  .option-row input{display:none;}
+  .option-row label:has(input:checked){background:var(--accent); border-color:var(--accent); color:var(--accent-text);}
+  .player-row{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .player-chip{padding:6px 12px; border-radius:20px; border:1px solid var(--border); font-size:.85rem; cursor:pointer; display:flex; align-items:center; gap:6px;}
+  .player-chip.active{background:var(--accent); border-color:var(--accent); color:var(--accent-text);}
+  .player-chip button{background:none; border:none; color:inherit; cursor:pointer; font-size:.8rem; padding:0; opacity:.75;}
+  .add-player{padding:6px 12px; border-radius:20px; border:1px dashed var(--border); background:none; color:var(--muted); cursor:pointer; font-size:.85rem;}
+  .op-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .op-btn{aspect-ratio:1.4; border-radius:16px; border:1px solid var(--border); background:var(--card); font-size:2.2rem; color:var(--accent); display:flex; align-items:center; justify-content:center; cursor:pointer;}
+  .mode-btn{width:100%; text-align:left; border:1px solid var(--border); background:var(--card); border-radius:14px; padding:16px; font-size:1.05rem; margin-bottom:12px; cursor:pointer; color:var(--text);}
+  .mode-btn small{display:block; color:var(--muted); font-size:.8rem; margin-top:2px;}
+  [data-screen][hidden]{display:none;}
+  .back-btn{background:none; border:none; color:var(--muted); font-size:.9rem; padding:6px 0 12px; cursor:pointer;}
+  .quiz-top{display:flex; justify-content:space-between; color:var(--muted); font-size:.85rem; margin-bottom:8px;}
+  .problem{font-size:2rem; text-align:center; margin:20px 0 14px; letter-spacing:.5px;}
+  .answer-row{display:flex; gap:10px; margin-bottom:10px;}
+  #answer-input{flex:1; font-size:1.4rem; padding:10px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text); text-align:center; min-width:0;}
+  button.primary{background:var(--accent); color:var(--accent-text); border:none; border-radius:10px; padding:10px 18px; font-size:1rem; cursor:pointer;}
+  .flash-ok{background:var(--ok); color:#fff;}
+  .flash-err{background:var(--err); color:#fff;}
+  .flash-ok .problem, .flash-ok .quiz-top, .flash-err .problem, .flash-err .quiz-top{color:inherit;}
+  .flash-err .problem{font-size:2.4rem;}
+  .result-num{font-size:2.6rem; text-align:center; margin:10px 0;}
+  .result-line{text-align:center; margin:6px 0; color:var(--muted);}
+  .result-actions{display:flex; gap:10px; margin-top:16px;}
+  .result-actions button{flex:1;}
+  .stat-block{margin-bottom:16px;}
+  .stat-block h3{font-size:.9rem; margin:0 0 8px; color:var(--muted);}
+  .hist-row{display:flex; justify-content:space-between; font-size:.85rem; padding:6px 0; border-bottom:1px solid var(--border);}
+  .hist-row:last-child{border-bottom:none;}
+  .empty{color:var(--muted); font-size:.85rem; text-align:center; padding:10px 0;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <h1>Rechentrainer</h1>
+    <button class="icon-btn" id="stats-btn">📊</button>
+  </div>
+
+  <div class="card">
+    <div class="player-row" id="player-row"></div>
+  </div>
+
+  <div class="card">
+    <div class="settings-toggle" id="settings-toggle"><span>⚙️ Einstellungen</span><span id="settings-arrow">▾</span></div>
+    <div class="settings-body" id="settings-body" hidden>
+      <fieldset>
+        <legend>Ergebnis bis</legend>
+        <div class="option-row" id="range-row">
+          <label><input type="radio" name="range" value="10"><span>10</span></label>
+          <label><input type="radio" name="range" value="100" checked><span>100</span></label>
+          <label><input type="radio" name="range" value="1000"><span>1000</span></label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Aufgabentyp</legend>
+        <div class="option-row" id="mode-row">
+          <label><input type="radio" name="qmode" value="normal" checked><span>Z1 · Op · Z2 = ?</span></label>
+          <label><input type="radio" name="qmode" value="missing"><span>Z1 · Op · ? = Ergebnis</span></label>
+        </div>
+      </fieldset>
+    </div>
+  </div>
+
+  <div data-screen="start">
+    <div class="card">
+      <div class="op-grid">
+        <div class="op-btn" data-op="+">+</div>
+        <div class="op-btn" data-op="-">−</div>
+        <div class="op-btn" data-op="*">×</div>
+        <div class="op-btn" data-op="/">÷</div>
+      </div>
+    </div>
+  </div>
+
+  <div data-screen="modeselect" hidden>
+    <button class="back-btn" data-back="start">← zurück</button>
+    <button class="mode-btn" id="mode-time">⏱ 1 Minute<small>So viele Aufgaben wie möglich</small></button>
+    <button class="mode-btn" id="mode-count">🔢 20 Aufgaben<small>Zeit wird gestoppt</small></button>
+  </div>
+
+  <div data-screen="quiz" class="card" hidden>
+    <button class="back-btn" data-back="modeselect">← abbrechen</button>
+    <div class="quiz-top"><span id="quiz-progress"></span><span id="quiz-timer"></span></div>
+    <div class="problem" id="problem-text"></div>
+    <div class="answer-row">
+      <input id="answer-input" type="number" inputmode="numeric" placeholder="?">
+      <button class="primary" id="check-btn">Prüfen</button>
+    </div>
+  </div>
+
+  <div data-screen="result" class="card" hidden>
+    <h2 id="result-title" style="text-align:center; margin:0;"></h2>
+    <div class="result-line" id="result-sub"></div>
+    <div class="result-num" id="result-num"></div>
+    <div class="result-line" id="result-detail"></div>
+    <div class="result-actions">
+      <button class="primary" id="result-again">Nochmal</button>
+      <button class="icon-btn" id="result-home">Start</button>
+    </div>
+  </div>
+
+  <div data-screen="stats" hidden>
+    <button class="back-btn" data-back="start">← zurück</button>
+    <div class="card" id="stats-content"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'rechentrainer_v2';
+  function loadData(){
+    try{ const raw = localStorage.getItem(STORAGE_KEY); if(raw) return JSON.parse(raw); }catch(e){}
+    return {players:[{id:'p1', name:'Spieler 1'}], currentId:'p1', sessions:{p1:[]}};
+  }
+  function saveData(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }catch(e){} }
+  let data = loadData();
+  function currentPlayer(){ return data.players.find(p=>p.id===data.currentId) || data.players[0]; }
+  function addPlayer(name){ const id='p'+Date.now(); data.players.push({id,name}); data.sessions[id]=[]; data.currentId=id; saveData(); renderPlayers(); }
+  function renamePlayer(id,name){ const p=data.players.find(p=>p.id===id); if(p){ p.name=name; saveData(); renderPlayers(); } }
+  function selectPlayer(id){ data.currentId=id; saveData(); renderPlayers(); }
+  function addSession(rec){ const id=data.currentId; if(!data.sessions[id]) data.sessions[id]=[]; data.sessions[id].unshift(rec); data.sessions[id]=data.sessions[id].slice(0,50); saveData(); }
+  function getSessions(mode){ return (data.sessions[data.currentId]||[]).filter(s=>s.mode===mode); }
+  function bestSession(mode){ const l=getSessions(mode); if(!l.length) return null; return l.slice().sort((a,b)=> b.correct-a.correct || (mode==='count'? a.duration-b.duration : b.total-a.total))[0]; }
+
+  const playerRow = document.getElementById('player-row');
+  function renderPlayers(){
+    playerRow.innerHTML='';
+    data.players.forEach(p=>{
+      const chip = document.createElement('div');
+      chip.className='player-chip'+(p.id===data.currentId?' active':'');
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = p.name;
+      nameSpan.addEventListener('click', ()=> selectPlayer(p.id));
+      const editBtn = document.createElement('button');
+      editBtn.textContent='✎';
+      editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); const n=prompt('Name ändern:', p.name); if(n && n.trim()) renamePlayer(p.id, n.trim()); });
+      chip.appendChild(nameSpan); chip.appendChild(editBtn);
+      playerRow.appendChild(chip);
+    });
+    const addBtn = document.createElement('button');
+    addBtn.className='add-player'; addBtn.textContent='+ Spieler';
+    addBtn.addEventListener('click', ()=>{ const n=prompt('Name des neuen Spielers:', 'Spieler '+(data.players.length+1)); if(n && n.trim()) addPlayer(n.trim()); });
+    playerRow.appendChild(addBtn);
+  }
+  renderPlayers();
+
+  const settingsToggle = document.getElementById('settings-toggle');
+  const settingsBody = document.getElementById('settings-body');
+  const settingsArrow = document.getElementById('settings-arrow');
+  settingsToggle.addEventListener('click', ()=>{
+    const hidden = settingsBody.hasAttribute('hidden');
+    if(hidden){ settingsBody.removeAttribute('hidden'); settingsArrow.textContent='▴'; }
+    else { settingsBody.setAttribute('hidden',''); settingsArrow.textContent='▾'; }
+  });
+
+  const screens = {};
+  document.querySelectorAll('[data-screen]').forEach(el=> screens[el.dataset.screen]=el);
+  function showScreen(name){ Object.values(screens).forEach(s=>s.setAttribute('hidden','')); screens[name].removeAttribute('hidden'); }
+
+  document.querySelectorAll('[data-back]').forEach(btn=> btn.addEventListener('click', ()=> showScreen(btn.dataset.back)));
+  document.getElementById('stats-btn').addEventListener('click', ()=>{ renderStats(); showScreen('stats'); });
+
+  function getRange(){ return parseInt(document.querySelector('input[name="range"]:checked').value, 10); }
+  function getQMode(){ return document.querySelector('input[name="qmode"]:checked').value; }
+  function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+  const symbols = {'+':'+','-':'−','*':'×','/':'÷'};
+
+  function genValues(op, max){
+    let a,b,r;
+    if(op==='+'){ r=randInt(1,max); a=randInt(0,r); b=r-a; }
+    else if(op==='-'){ a=randInt(0,max); b=randInt(0,a); r=a-b; }
+    else if(op==='*'){
+      const limit = Math.max(2, Math.floor(Math.sqrt(max)));
+      a = randInt(1, limit); b = randInt(1, Math.min(limit, Math.floor(max/a))); r = a*b;
+    } else {
+      const limit = Math.max(2, Math.floor(Math.sqrt(max)));
+      b = randInt(1, limit); r = randInt(1, Math.min(limit, Math.floor(max/b))); a = b*r;
+    }
+    return {a,b,r};
+  }
+
+  let chosenOp = '+';
+  document.querySelectorAll('.op-btn').forEach(btn=> btn.addEventListener('click', ()=>{ chosenOp = btn.dataset.op; showScreen('modeselect'); }));
+
+  let session = null, current = null;
+  const problemText = document.getElementById('problem-text');
+  const answerInput = document.getElementById('answer-input');
+  const quizCard = screens.quiz;
+  const quizProgress = document.getElementById('quiz-progress');
+  const quizTimer = document.getElementById('quiz-timer');
+
+  function loadQuestion(){
+    const max = getRange(); const qmode = getQMode();
+    const {a,b,r} = genValues(chosenOp, max);
+    const sym = symbols[chosenOp];
+    if(qmode==='normal'){ current = {display:`${a} ${sym} ${b} =`, answer:r}; }
+    else {
+      if(Math.random()<0.5) current = {display:`? ${sym} ${b} = ${r}`, answer:a};
+      else current = {display:`${a} ${sym} ? = ${r}`, answer:b};
+    }
+    problemText.textContent = current.display;
+    answerInput.value=''; answerInput.disabled=false; answerInput.focus();
+    quizCard.classList.remove('flash-ok','flash-err');
+    if(session.mode==='count') quizProgress.textContent = `Aufgabe ${session.total+1}/20`;
+    else quizProgress.textContent = `Richtig: ${session.correct}`;
+  }
+
+  function updateTimerLabel(){ quizTimer.textContent = session.remaining+' s'; }
+
+  function startMode(mode){
+    session = {mode, op:chosenOp, range:getRange(), correct:0, total:0, start:Date.now(), finished:false};
+    if(mode==='time'){ session.remaining=60; updateTimerLabel();
+      session.timerId = setInterval(()=>{ session.remaining--; updateTimerLabel(); if(session.remaining<=0){ clearInterval(session.timerId); finishSession(); } },1000);
+      quizTimer.style.display='inline';
+    } else { quizTimer.style.display='none'; }
+    showScreen('quiz'); loadQuestion();
+  }
+  document.getElementById('mode-time').addEventListener('click', ()=> startMode('time'));
+  document.getElementById('mode-count').addEventListener('click', ()=> startMode('count'));
+
+  function answerCurrent(){
+    if(!session || session.finished || answerInput.value==='') return;
+    const val = parseInt(answerInput.value,10);
+    const ok = val===current.answer;
+    session.total++; if(ok) session.correct++;
+    answerInput.disabled=true;
+    quizCard.classList.add(ok?'flash-ok':'flash-err');
+    problemText.textContent = ok ? current.display.replace('=','= '+current.answer) : String(current.answer);
+    setTimeout(()=>{
+      if(session.mode==='count' && session.total>=20){ finishSession(); return; }
+      if(session.mode==='time' && session.remaining<=0){ return; }
+      loadQuestion();
+    }, 550);
+  }
+  document.getElementById('check-btn').addEventListener('click', answerCurrent);
+  answerInput.addEventListener('keydown', e=>{ if(e.key==='Enter') answerCurrent(); });
+
+  function finishSession(){
+    if(!session || session.finished) return;
+    session.finished = true;
+    if(session.timerId) clearInterval(session.timerId);
+    const duration = session.mode==='count' ? Math.round((Date.now()-session.start)/1000) : null;
+    const rec = {mode:session.mode, op:session.op, range:session.range, correct:session.correct, total:session.total, duration, date:new Date().toLocaleDateString('de-DE')};
+    addSession(rec);
+    showResult(rec);
+  }
+
+  const resultTitle = document.getElementById('result-title');
+  const resultSub = document.getElementById('result-sub');
+  const resultNum = document.getElementById('result-num');
+  const resultDetail = document.getElementById('result-detail');
+  function showResult(rec){
+    if(rec.mode==='time'){
+      resultTitle.textContent='Zeit ist um!';
+      resultSub.textContent = symbols[rec.op]+'  ·  1 Minute';
+      resultNum.textContent = rec.correct+' / '+rec.total;
+      resultDetail.textContent = 'richtig von geschafften Aufgaben';
+    } else {
+      resultTitle.textContent='Fertig!';
+      resultSub.textContent = symbols[rec.op]+'  ·  20 Aufgaben';
+      resultNum.textContent = rec.correct+' / 20';
+      resultDetail.textContent = 'in '+rec.duration+' Sekunden';
+    }
+    showScreen('result');
+  }
+  document.getElementById('result-again').addEventListener('click', ()=> startMode(session.mode));
+  document.getElementById('result-home').addEventListener('click', ()=> showScreen('start'));
+
+  const statsContent = document.getElementById('stats-content');
+  function renderStats(){
+    const bestTime = bestSession('time'); const bestCount = bestSession('count');
+    const histTime = getSessions('time').slice(0,8); const histCount = getSessions('count').slice(0,8);
+    function line(rec){
+      const opS = symbols[rec.op];
+      const res = rec.mode==='time' ? rec.correct+'/'+rec.total : rec.correct+'/20 · '+rec.duration+'s';
+      return `<div class="hist-row"><span>${rec.date} · ${opS}</span><span>${res}</span></div>`;
+    }
+    statsContent.innerHTML = `
+      <div class="stat-block"><h3>${currentPlayer().name} — Bestwerte</h3>
+        <div class="hist-row"><span>⏱ 1 Minute</span><span>${bestTime? bestTime.correct+'/'+bestTime.total : '–'}</span></div>
+        <div class="hist-row"><span>🔢 20 Aufgaben</span><span>${bestCount? bestCount.correct+'/20 · '+bestCount.duration+'s' : '–'}</span></div>
+      </div>
+      <div class="stat-block"><h3>Verlauf · 1 Minute</h3>${histTime.length? histTime.map(line).join('') : '<div class="empty">Noch keine Runden</div>'}</div>
+      <div class="stat-block"><h3>Verlauf · 20 Aufgaben</h3>${histCount.length? histCount.map(line).join('') : '<div class="empty">Noch keine Runden</div>'}</div>
+    `;
+  }
+})();
+</script>
+</body>
+</html>
