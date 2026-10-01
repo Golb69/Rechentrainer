@@ -137,7 +137,8 @@
   <div data-screen="stats" hidden>
     <button class="back-btn" data-back="start">← zurück</button>
     <div class="card" id="stats-content"></div>
-    <button class="icon-btn" id="clear-history-btn" style="width:100%;">🗑 Verlauf dieses Spielers löschen</button>
+    <button class="icon-btn" id="clear-history-btn" style="width:100%; margin-bottom:10px;">🗑 Verlauf dieses Spielers löschen</button>
+    <button class="icon-btn" id="clear-mistakes-btn" style="width:100%;">🗑 Fehler-Analyse (× ÷) zurücksetzen</button>
   </div>
 </div>
 
@@ -146,24 +147,57 @@
   const STORAGE_KEY = 'rechentrainer_v2';
   function loadData(){
     try{ const raw = localStorage.getItem(STORAGE_KEY); if(raw) return JSON.parse(raw); }catch(e){}
-    return {players:[{id:'p1', name:'Spieler 1'}], currentId:'p1', sessions:{p1:[]}};
+    return {players:[{id:'p1', name:'Spieler 1'}], currentId:'p1', sessions:{p1:[]}, mistakes:{p1:{}}};
   }
   function saveData(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }catch(e){} }
   let data = loadData();
+  if(!data.mistakes) data.mistakes = {};
+  data.players.forEach(p=>{ if(!data.mistakes[p.id]) data.mistakes[p.id] = {}; });
   function currentPlayer(){ return data.players.find(p=>p.id===data.currentId) || data.players[0]; }
-  function addPlayer(name){ const id='p'+Date.now(); data.players.push({id,name}); data.sessions[id]=[]; data.currentId=id; saveData(); renderPlayers(); }
+  function addPlayer(name){ const id='p'+Date.now(); data.players.push({id,name}); data.sessions[id]=[]; data.mistakes[id]={}; data.currentId=id; saveData(); renderPlayers(); }
   function renamePlayer(id,name){ const p=data.players.find(p=>p.id===id); if(p){ p.name=name; saveData(); renderPlayers(); } }
   function selectPlayer(id){ data.currentId=id; saveData(); renderPlayers(); }
   function deletePlayer(id){
     if(data.players.length<=1) return;
     data.players = data.players.filter(p=>p.id!==id);
     delete data.sessions[id];
+    delete data.mistakes[id];
     if(data.currentId===id) data.currentId = data.players[0].id;
     saveData(); renderPlayers();
   }
   function clearHistory(){
     data.sessions[data.currentId] = [];
     saveData();
+  }
+  function resetMistakes(){
+    data.mistakes[data.currentId] = {};
+    saveData();
+  }
+  function mistakeKey(op,a,b){
+    if(op==='*'){ const pair=[a,b].sort((x,y)=>x-y); return '*:'+pair[0]+','+pair[1]; }
+    if(op==='/') return '/:'+a+','+b;
+    return null;
+  }
+  function recordMistake(op,a,b){
+    const key = mistakeKey(op,a,b);
+    if(!key) return;
+    if(!data.mistakes[data.currentId]) data.mistakes[data.currentId] = {};
+    const m = data.mistakes[data.currentId];
+    m[key] = (m[key]||0)+1;
+    saveData();
+  }
+  function pickWeakPair(op, max){
+    const prefix = op+':';
+    const m = data.mistakes[data.currentId] || {};
+    const candidates = Object.keys(m).filter(k=>k.startsWith(prefix) && m[k]>0).map(k=>{
+      const [a,b] = k.slice(prefix.length).split(',').map(Number);
+      return {a,b,wrong:m[k]};
+    }).filter(c => op==='*' ? (c.a*c.b<=max) : (c.a<=max && c.b>0 && c.a%c.b===0));
+    if(!candidates.length) return null;
+    const totalWeight = candidates.reduce((s,c)=>s+c.wrong,0);
+    let r = Math.random()*totalWeight;
+    for(const c of candidates){ r-=c.wrong; if(r<=0) return c; }
+    return candidates[candidates.length-1];
   }
   function addSession(rec){ const id=data.currentId; if(!data.sessions[id]) data.sessions[id]=[]; data.sessions[id].unshift(rec); data.sessions[id]=data.sessions[id].slice(0,50); saveData(); }
   function getSessions(mode){ return (data.sessions[data.currentId]||[]).filter(s=>s.mode===mode); }
@@ -215,6 +249,9 @@
   document.getElementById('clear-history-btn').addEventListener('click', ()=>{
     if(confirm('Verlauf und Bestwerte von "'+currentPlayer().name+'" wirklich löschen?')){ clearHistory(); renderStats(); }
   });
+  document.getElementById('clear-mistakes-btn').addEventListener('click', ()=>{
+    if(confirm('Fehler-Analyse (× und ÷) von "'+currentPlayer().name+'" wirklich zurücksetzen?')){ resetMistakes(); renderStats(); }
+  });
 
   function getRange(){ return parseInt(document.querySelector('input[name="range"]:checked').value, 10); }
   function getQMode(){ return document.querySelector('input[name="qmode"]:checked').value; }
@@ -247,12 +284,18 @@
 
   function loadQuestion(){
     const max = getRange(); const qmode = getQMode();
-    const {a,b,r} = genValues(chosenOp, max);
+    let vals = null;
+    if((chosenOp==='*'||chosenOp==='/') && Math.random()<0.5){
+      const weak = pickWeakPair(chosenOp, max);
+      if(weak){ vals = {a:weak.a, b:weak.b, r: chosenOp==='*'? weak.a*weak.b : weak.a/weak.b}; }
+    }
+    if(!vals) vals = genValues(chosenOp, max);
+    const {a,b,r} = vals;
     const sym = symbols[chosenOp];
-    if(qmode==='normal'){ current = {display:`${a} ${sym} ${b} =`, answer:r}; }
+    if(qmode==='normal'){ current = {display:`${a} ${sym} ${b} =`, answer:r, op:chosenOp, a, b}; }
     else {
-      if(Math.random()<0.5) current = {display:`? ${sym} ${b} = ${r}`, answer:a};
-      else current = {display:`${a} ${sym} ? = ${r}`, answer:b};
+      if(Math.random()<0.5) current = {display:`? ${sym} ${b} = ${r}`, answer:a, op:chosenOp, a, b};
+      else current = {display:`${a} ${sym} ? = ${r}`, answer:b, op:chosenOp, a, b};
     }
     problemText.textContent = current.display;
     answerInput.value=''; answerInput.disabled=false; answerInput.focus();
@@ -279,6 +322,7 @@
     const val = parseInt(answerInput.value,10);
     const ok = val===current.answer;
     session.total++; if(ok) session.correct++;
+    if(!ok && (current.op==='*'||current.op==='/')) recordMistake(current.op, current.a, current.b);
     answerInput.disabled=true;
     quizCard.classList.add(ok?'flash-ok':'flash-err');
     problemText.textContent = ok ? current.display.replace('=','= '+current.answer) : String(current.answer);
@@ -326,6 +370,11 @@
   function renderStats(){
     const bestTime = bestSession('time'); const bestCount = bestSession('count');
     const histTime = getSessions('time').slice(0,8); const histCount = getSessions('count').slice(0,8);
+    const mistakesRaw = data.mistakes[data.currentId] || {};
+    const mistakeList = Object.keys(mistakesRaw).map(k=>{
+      const op = k[0]; const [a,b] = k.slice(2).split(',').map(Number);
+      return {label: op==='*' ? `${a} × ${b}` : `${a} ÷ ${b}`, count: mistakesRaw[k]};
+    }).sort((x,y)=>y.count-x.count).slice(0,10);
     function line(rec){
       const opS = symbols[rec.op];
       const res = rec.mode==='time' ? rec.correct+'/'+rec.total : rec.correct+'/20 · '+rec.duration+'s';
@@ -338,6 +387,7 @@
       </div>
       <div class="stat-block"><h3>Verlauf · 1 Minute</h3>${histTime.length? histTime.map(line).join('') : '<div class="empty">Noch keine Runden</div>'}</div>
       <div class="stat-block"><h3>Verlauf · 20 Aufgaben</h3>${histCount.length? histCount.map(line).join('') : '<div class="empty">Noch keine Runden</div>'}</div>
+      <div class="stat-block"><h3>Häufige Fehler · × und ÷</h3>${mistakeList.length? mistakeList.map(m=>`<div class="hist-row"><span>${m.label}</span><span>${m.count}× falsch</span></div>`).join('') : '<div class="empty">Noch keine Fehler erfasst</div>'}</div>
     `;
   }
 })();
