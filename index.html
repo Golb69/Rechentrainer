@@ -137,6 +137,7 @@
   <div data-screen="stats" hidden>
     <button class="back-btn" data-back="start">← zurück</button>
     <div class="card" id="stats-content"></div>
+    <button class="icon-btn" id="clear-history-btn" style="width:100%;">🗑 Verlauf dieses Spielers löschen</button>
   </div>
 </div>
 
@@ -153,6 +154,17 @@
   function addPlayer(name){ const id='p'+Date.now(); data.players.push({id,name}); data.sessions[id]=[]; data.currentId=id; saveData(); renderPlayers(); }
   function renamePlayer(id,name){ const p=data.players.find(p=>p.id===id); if(p){ p.name=name; saveData(); renderPlayers(); } }
   function selectPlayer(id){ data.currentId=id; saveData(); renderPlayers(); }
+  function deletePlayer(id){
+    if(data.players.length<=1) return;
+    data.players = data.players.filter(p=>p.id!==id);
+    delete data.sessions[id];
+    if(data.currentId===id) data.currentId = data.players[0].id;
+    saveData(); renderPlayers();
+  }
+  function clearHistory(){
+    data.sessions[data.currentId] = [];
+    saveData();
+  }
   function addSession(rec){ const id=data.currentId; if(!data.sessions[id]) data.sessions[id]=[]; data.sessions[id].unshift(rec); data.sessions[id]=data.sessions[id].slice(0,50); saveData(); }
   function getSessions(mode){ return (data.sessions[data.currentId]||[]).filter(s=>s.mode===mode); }
   function bestSession(mode){ const l=getSessions(mode); if(!l.length) return null; return l.slice().sort((a,b)=> b.correct-a.correct || (mode==='count'? a.duration-b.duration : b.total-a.total))[0]; }
@@ -170,6 +182,12 @@
       editBtn.textContent='✎';
       editBtn.addEventListener('click', (e)=>{ e.stopPropagation(); const n=prompt('Name ändern:', p.name); if(n && n.trim()) renamePlayer(p.id, n.trim()); });
       chip.appendChild(nameSpan); chip.appendChild(editBtn);
+      if(data.players.length>1){
+        const delBtn = document.createElement('button');
+        delBtn.textContent='🗑';
+        delBtn.addEventListener('click', (e)=>{ e.stopPropagation(); if(confirm('Spieler "'+p.name+'" inkl. Verlauf wirklich löschen?')) deletePlayer(p.id); });
+        chip.appendChild(delBtn);
+      }
       playerRow.appendChild(chip);
     });
     const addBtn = document.createElement('button');
@@ -194,6 +212,9 @@
 
   document.querySelectorAll('[data-back]').forEach(btn=> btn.addEventListener('click', ()=> showScreen(btn.dataset.back)));
   document.getElementById('stats-btn').addEventListener('click', ()=>{ renderStats(); showScreen('stats'); });
+  document.getElementById('clear-history-btn').addEventListener('click', ()=>{
+    if(confirm('Verlauf und Bestwerte von "'+currentPlayer().name+'" wirklich löschen?')){ clearHistory(); renderStats(); }
+  });
 
   function getRange(){ return parseInt(document.querySelector('input[name="range"]:checked').value, 10); }
   function getQMode(){ return document.querySelector('input[name="qmode"]:checked').value; }
